@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+
+# Data
+data/raw_ticks/
+data/features/
+data/stock_list.csv
+
+# Logs
+*.log
+
+# Environment
+.env
