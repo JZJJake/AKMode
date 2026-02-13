@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 class DataLoader:
     """
     Handles data fetching from the TDX API.
+    Ref: https://github.com/oficcejo/tdx-api
     """
 
     def __init__(self, base_url: str = TDX_API_BASE_URL, timeout: int = 10):
@@ -27,10 +28,12 @@ class DataLoader:
         Returns:
             pd.DataFrame: DataFrame containing all ticks (Time, Price, Volume, Status).
                           Returns an empty DataFrame on failure or no data.
+                          Columns: ['Time', 'Price', 'Volume', 'Status']
+                          Price in Yuan (converted from 厘), Volume in Shares (converted from Hands).
         """
         all_ticks = []
         start = 0
-        count = 2000 # Fetch limit per request (adjust based on API limits)
+        count = 2000 # Fetch limit per request
 
         while True:
             params = {
@@ -50,20 +53,20 @@ class DataLoader:
                 response.raise_for_status()
                 data = response.json()
 
+                # Check API success code (assumed 0 based on context, possibly 'code' field)
                 if data.get("code") != 0:
                     logger.error(f"API Error for {code} on {date}: {data.get('msg', 'Unknown Error')}")
                     break
 
+                # Extract data based on described structure
                 tick_data = data.get("data", {})
                 ticks_list = tick_data.get("List", [])
-                total_count = tick_data.get("Count", 0)
 
                 if not ticks_list:
                     break
 
                 all_ticks.extend(ticks_list)
 
-                # If received fewer records than requested, we've likely reached the end.
                 if len(ticks_list) < count:
                     break
 
@@ -71,21 +74,38 @@ class DataLoader:
 
             except requests.exceptions.RequestException as e:
                 logger.error(f"Request failed for {code} on {date}: {e}")
-                # Simple retry logic could be added here, but for now we break or return partial data
-                # Depending on requirement, we might want to fail hard or continue.
-                # Given strictness, let's log and return empty to avoid partial data corruption.
                 return pd.DataFrame()
 
         if not all_ticks:
             return pd.DataFrame()
 
         df = pd.DataFrame(all_ticks)
-        return df
+
+        # Verify columns exist (PascalCase check)
+        required_cols = ['Time', 'Price', 'Volume', 'Status']
+        if not all(col in df.columns for col in required_cols):
+            logger.error(f"Missing required columns in API response for {code}. Found: {df.columns}")
+            # Attempt case-insensitive mapping if needed, or fail.
+            # For now, strict check as requested.
+            return pd.DataFrame()
+
+        # Type Conversion
+        df['Price'] = pd.to_numeric(df['Price'], errors='coerce').fillna(0.0)
+        df['Volume'] = pd.to_numeric(df['Volume'], errors='coerce').fillna(0)
+        df['Status'] = pd.to_numeric(df['Status'], errors='coerce').fillna(2) # Default to neutral if error
+
+        # Unit Conversion
+        # Price: 厘 -> Yuan (/1000)
+        df['Price'] = df['Price'] / 1000.0
+
+        # Volume: Hands -> Shares (*100)
+        df['Volume'] = df['Volume'] * 100
+
+        return df[['Time', 'Price', 'Volume', 'Status']]
 
 if __name__ == "__main__":
     # Simple test
     loader = DataLoader()
-    # Note: This will fail without a running server, but verifies syntax.
     try:
         df = loader.fetch_history_ticks("000001", "20231101")
         print(df.head())

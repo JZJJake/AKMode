@@ -9,16 +9,19 @@ logger = logging.getLogger(__name__)
 def calculate_flow_metrics(tick_df: pd.DataFrame) -> dict:
     """
     Calculates the 'True Flow' metrics from tick data.
+    Ref: https://github.com/oficcejo/tdx-api
 
     Logic:
     - True_Active_Buy (Status=0)
     - True_Active_Sell (Status=1)
     - Flow_Ratio = (Buy - Sell) / Total_Volume
+
+    Note: tick_df must have columns ['Price', 'Volume', 'Status'] in proper units.
     """
     if tick_df.empty:
         return {}
 
-    # Ensure numeric types
+    # Ensure numeric types (already handled in loader but safe to re-check)
     tick_df['Volume'] = pd.to_numeric(tick_df['Volume'], errors='coerce').fillna(0)
     tick_df['Status'] = pd.to_numeric(tick_df['Status'], errors='coerce').fillna(-1)
 
