@@ -1,7 +1,7 @@
 import os
 import csv
 import logging
-from config.settings import DATA_DIR, STOCK_FILTER_REGEX, is_valid_stock_code
+from app_config.settings import DATA_DIR, STOCK_FILTER_REGEX, is_valid_stock_code
 
 logger = logging.getLogger(__name__)
 

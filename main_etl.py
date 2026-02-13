@@ -6,7 +6,7 @@ import os
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-from config.settings import LOG_FORMAT, LOG_LEVEL
+from app_config.settings import LOG_FORMAT, LOG_LEVEL
 from src.data_loader import DataLoader
 from src.etl import process_daily_stock
 from src.utils import load_stock_list, save_stock_list, get_stock_list_file

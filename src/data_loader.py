@@ -2,7 +2,7 @@ import requests
 import pandas as pd
 import logging
 from urllib.parse import urljoin
-from config.settings import TDX_API_BASE_URL, TDX_API_HISTORY_ENDPOINT
+from app_config.settings import TDX_API_BASE_URL, TDX_API_HISTORY_ENDPOINT
 
 logger = logging.getLogger(__name__)
 

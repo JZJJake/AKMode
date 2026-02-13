@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 import logging
-from config.settings import RAW_TICKS_DIR, FEATURES_DIR
+from app_config.settings import RAW_TICKS_DIR, FEATURES_DIR
 
 logger = logging.getLogger(__name__)
 
