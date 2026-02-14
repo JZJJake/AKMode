@@ -36,6 +36,10 @@ class FeatureEngine:
                 df = pd.read_parquet(file_path)
                 df = df.sort_values('Date').reset_index(drop=True)
 
+                # Handle Volume column name mismatch
+                if 'Total_Volume' in df.columns and 'Volume' not in df.columns:
+                    df.rename(columns={'Total_Volume': 'Volume'}, inplace=True)
+
                 # Calculate Technicals
                 df['MACD_Hist'] = calculate_macd(df)
                 df['KDJ_J'] = calculate_kdj_j(df)
