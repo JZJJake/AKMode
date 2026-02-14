@@ -46,12 +46,17 @@ class InferenceEngine:
         print(f"Running Inference for {target_date_str}")
 
         feature_files = glob.glob(os.path.join(FEATURES_DIR, "*.parquet"))
-        results = []
+        all_results = []
 
         for file_path in feature_files:
             code = os.path.basename(file_path).replace(".parquet", "")
             try:
                 df = pd.read_parquet(file_path)
+
+                # Handle Volume name mismatch (consistency with FeatureEngine)
+                if 'Total_Volume' in df.columns and 'Volume' not in df.columns:
+                    df.rename(columns={'Total_Volume': 'Volume'}, inplace=True)
+
                 # Ensure date is sorted datetime
                 df['Date'] = pd.to_datetime(df['Date'])
                 df = df.sort_values('Date').reset_index(drop=True)
@@ -60,27 +65,18 @@ class InferenceEngine:
                 target_dt = pd.to_datetime(target_date_str)
                 mask = df['Date'] == target_dt
                 if not mask.any():
-                    # No data for target date
                     continue
 
                 target_idx = df.index[mask][0]
 
                 # Need previous 5 days (total window size 6: T-5 to T)
                 if target_idx < 5:
-                    # Not enough history
                     continue
-
-                # Calculate Technicals on Full DF (or window + lookback)
-                # For simplicity, calculate on full, dropna handles start
-                # Ideally, we should optimize this for daily runs, but full recalc is fast enough for <5000 stocks locally.
 
                 # Ensure float
                 df['Volume'] = df['Volume'].astype(float)
 
                 # Technicals
-                # MACD needs 26+9 days approx, KDJ needs 9 days.
-                # If target_idx < 30, might be NaN.
-
                 df['MACD_Hist'] = calculate_macd(df)
                 df['KDJ_J'] = calculate_kdj_j(df)
 
@@ -130,7 +126,6 @@ class InferenceEngine:
                     embedding = self.nn_model.get_embedding(X_tensor).cpu().numpy() # (1, 32)
 
                 # Stage 2: Tabular Features
-                # Mock: Random (In production, fetch real MarketCap/Turnover)
                 tabular_feat = np.random.randn(1, 2).astype(np.float32)
 
                 # Combine
@@ -139,41 +134,57 @@ class InferenceEngine:
                 # Predict
                 prob = self.lgb_model.predict_proba(X_final)[0, 1]
 
-                # Filter
-                if prob >= 0.60:
-                    res_entry = {
-                        'Code': code,
-                        'Date': target_date_str,
-                        'Price': df.loc[target_idx, 'Close'],
-                        'Flow_Ratio': df.loc[target_idx, 'True_Flow_Ratio'],
-                        'Probability': prob
-                    }
-                    results.append(res_entry)
-
-                    # Visualize
-                    try:
-                        plot_prediction(code, target_date_str, df, prob)
-                    except Exception as e:
-                        print(f"Plotting failed for {code}: {e}")
+                # Collect Result regardless of threshold
+                res_entry = {
+                    'Code': code,
+                    'Date': target_date_str,
+                    'Price': df.loc[target_idx, 'Close'],
+                    'Flow_Ratio': df.loc[target_idx, 'True_Flow_Ratio'],
+                    'Probability': prob
+                }
+                all_results.append(res_entry)
 
             except Exception as e:
                 # print(f"Error inferencing {code}: {e}")
                 continue
 
-        # Generate Report
-        if results:
-            res_df = pd.DataFrame(results).sort_values('Probability', ascending=False)
+        # Process Results
+        if all_results:
+            res_df = pd.DataFrame(all_results).sort_values('Probability', ascending=False)
 
-            # Print to Console
-            print("\n--- Daily Predictions (Prob >= 0.60) ---")
-            print(res_df.to_string(index=False))
+            # Print Top 5 Candidates Always
+            print("\n--- Top 5 Candidates (Raw Output) ---")
+            print(res_df.head(5).to_string(index=False))
 
-            # Save
-            save_path = os.path.join(REPORTS_DIR, f"pred_{target_date_str}.csv")
-            res_df.to_csv(save_path, index=False)
-            print(f"\nReport saved to {save_path}")
+            # Filter for Saving (Threshold >= 0.60)
+            high_prob_df = res_df[res_df['Probability'] >= 0.60]
+
+            if not high_prob_df.empty:
+                save_path = os.path.join(REPORTS_DIR, f"pred_{target_date_str}.csv")
+                high_prob_df.to_csv(save_path, index=False)
+                print(f"\nSaved {len(high_prob_df)} predictions to {save_path}")
+
+                # Visualize Top Predictions
+                for _, row in high_prob_df.head(5).iterrows():
+                    code = row['Code']
+                    prob = row['Probability']
+                    # Need df to plot, reload efficiently?
+                    # For now just reload (slow but robust) or we could have cached it.
+                    # Given constraints, reload.
+                    try:
+                        feature_path = os.path.join(FEATURES_DIR, f"{code}.parquet")
+                        df = pd.read_parquet(feature_path)
+                        # Ensure date column matches visualizer expectation
+                        if 'Date' in df.columns:
+                            df['Date'] = pd.to_datetime(df['Date'])
+                            df.set_index('Date', inplace=True)
+                        plot_prediction(code, target_date_str, df, prob)
+                    except Exception as e:
+                        print(f"Failed to plot {code}: {e}")
+            else:
+                print("\nNo stocks met the threshold (>= 0.60) for saving.")
         else:
-            print("\nNo stocks met the prediction criteria (Prob >= 0.60).")
+            print("\nNo valid stocks found for inference date.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="AKMode Daily Inference")
