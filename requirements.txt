@@ -2,3 +2,6 @@ requests
 pandas
 pyarrow
 fastparquet
+torch
+lightgbm
+scikit-learn

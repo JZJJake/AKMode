@@ -40,6 +40,10 @@ class FeatureEngine:
                 df['MACD_Hist'] = calculate_macd(df)
                 df['KDJ_J'] = calculate_kdj_j(df)
 
+                # Drop NaNs from technical indicators (warm-up period)
+                df.dropna(subset=['MACD_Hist', 'KDJ_J'], inplace=True)
+                df.reset_index(drop=True, inplace=True)
+
                 # Ensure float for Volume
                 df['Volume'] = df['Volume'].astype(float)
 
