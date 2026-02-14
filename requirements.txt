@@ -6,3 +6,4 @@ torch
 lightgbm
 scikit-learn
 mplfinance
+pytdx
