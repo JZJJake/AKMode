@@ -5,3 +5,4 @@ fastparquet
 torch
 lightgbm
 scikit-learn
+mplfinance

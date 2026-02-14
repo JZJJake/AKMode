@@ -6,10 +6,12 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 RAW_TICKS_DIR = os.path.join(DATA_DIR, "raw_ticks")
 FEATURES_DIR = os.path.join(DATA_DIR, "features")
+MODELS_DIR = os.path.join(BASE_DIR, "models")
 
 # Ensure data directories exist
 os.makedirs(RAW_TICKS_DIR, exist_ok=True)
 os.makedirs(FEATURES_DIR, exist_ok=True)
+os.makedirs(MODELS_DIR, exist_ok=True)
 
 # TDX API Configuration
 TDX_API_BASE_URL = os.getenv("TDX_API_URL", "http://localhost:8080")
