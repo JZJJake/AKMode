@@ -1,7 +1,7 @@
-import os
 import pandas as pd
 import numpy as np
 import logging
+import os
 from app_config.settings import RAW_TICKS_DIR, FEATURES_DIR
 
 logger = logging.getLogger(__name__)
@@ -24,6 +24,7 @@ def calculate_flow_metrics(tick_df: pd.DataFrame) -> dict:
     # Ensure numeric types (already handled in loader but safe to re-check)
     tick_df['Volume'] = pd.to_numeric(tick_df['Volume'], errors='coerce').fillna(0)
     tick_df['Status'] = pd.to_numeric(tick_df['Status'], errors='coerce').fillna(-1)
+    tick_df['Price'] = pd.to_numeric(tick_df['Price'], errors='coerce').fillna(0.0)
 
     # Calculate components
     # Status: 0=Buy, 1=Sell, 2=Neutral
@@ -41,6 +42,32 @@ def calculate_flow_metrics(tick_df: pd.DataFrame) -> dict:
         'Total_Volume': total_vol,
         'True_Flow_Ratio': flow_ratio
     }
+
+def calculate_daily_ohlcv(tick_df: pd.DataFrame) -> dict:
+    """
+    Derives Daily OHLCV from tick data.
+    """
+    if tick_df.empty:
+        return {}
+
+    # Ensure sorted by time if not already
+    # But usually ticks come sorted.
+    # Open: First tick price
+    # Close: Last tick price
+    # High: Max price
+    # Low: Min price
+    # Volume: Sum (should match Total_Volume from flow metrics)
+
+    tick_df['Price'] = pd.to_numeric(tick_df['Price'], errors='coerce').fillna(0.0)
+
+    ohlc = {
+        'Open': tick_df['Price'].iloc[0],
+        'High': tick_df['Price'].max(),
+        'Low': tick_df['Price'].min(),
+        'Close': tick_df['Price'].iloc[-1],
+        # Volume is handled in flow metrics, but good to have here too
+    }
+    return ohlc
 
 def save_raw_ticks(tick_df: pd.DataFrame, code: str, date: str):
     """
@@ -111,8 +138,14 @@ def process_daily_stock(tick_df: pd.DataFrame, code: str, date: str):
     # 1. Save Raw Ticks
     save_raw_ticks(tick_df, code, date)
 
-    # 2. Calculate Features
-    metrics = calculate_flow_metrics(tick_df)
+    # 2. Calculate Flow Metrics
+    flow_metrics = calculate_flow_metrics(tick_df)
+
+    # 3. Calculate OHLCV
+    ohlc_metrics = calculate_daily_ohlcv(tick_df)
+
+    # Merge
+    full_metrics = {**flow_metrics, **ohlc_metrics}
 
     # 3. Update Feature Store
-    update_features(metrics, code, date)
+    update_features(full_metrics, code, date)
