@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+venv/
+vnpy_lite.egg-info/
